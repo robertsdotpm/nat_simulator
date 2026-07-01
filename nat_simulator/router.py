@@ -1,12 +1,11 @@
-import os
 from .defs import *
-from .utils import load_func
+from .utils import *
+from .delta import Delta
 
 class Router:
-    def __init__(self, nat_type):
-        file_path = os.path.join("nat_types", nat_type + ".py")
-        code = open(file_path, "r").read()
-        self.approve_plugin = load_func(code, "approve")
+    def __init__(self, nat_type, delta):
+        self.delta = delta
+        self.approve_plugin = load_plugin(("nat_types", nat_type))
         self.flows = {}
 
     def approve(self, af, proto, mapping, dest):
@@ -15,15 +14,16 @@ class Router:
     def connect(self, af, proto, src, dest):
         flow = FlowKey(af, proto, *src, *dest)
 
-        mapping = 1 # temporary
+        # Allocate a new NAT mapping based on the unique delta algorithm.
+        mapping = self.delta.allocate()
 
         # The NAT decides on whether inbound mappings can enter.
         # Hence, filtering by destination is convenient.
         flow_key = (af, proto, mapping)
         self.flows[flow_key] = flow
 
-
-r = Router("full_cone")
+delta = Delta("independent")
+r = Router("full_cone", delta)
 src = ("10.0.1.50", 5000)
 dest = ("8.8.8.8", 53)
 r.connect(IP4, UDP, src, dest)
@@ -32,5 +32,5 @@ r.connect(IP4, UDP, src, dest)
 #print(r.flows)
 
 # Simulate accepting a con
-ret = r.approve(IP4, UDP, 2, dest)
+ret = r.approve(IP4, UDP, 1, dest)
 print(ret)
