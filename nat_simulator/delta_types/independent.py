@@ -1,3 +1,3 @@
-def plugin(delta, step, data):
-    delta.value = delta.value + step
+def plugin(delta, flow):
+    delta.value = delta.value + delta.step
     return delta.value
