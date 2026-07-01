@@ -14,19 +14,20 @@ class Router:
     def get_mapping(self, flow):
         # Allocate a new NAT mapping based on the unique delta algorithm.
         # Makes sure mapping isn't already used for this router.
-        mapping = None
+        mapping = 0
         for attempt in range(0, MAX_PORT):
-            mapping = int(self.delta.allocate(flow) + attempt)
+            mapping = int(self.delta.allocate(flow, mapping) + attempt)
             flow_key = (flow.af, flow.proto, mapping)
 
             # Mapping already allocated, try again.
             if flow_key in self.flows:
+                mapping = 0
                 continue
 
             return mapping
 
         # Check for mapping success.
-        if mapping is None:
+        if not mapping:
             raise ValueError("No mappings left for router.")
 
     def connect(self, af, proto, src, dest):
@@ -43,11 +44,20 @@ class Router:
         # Let caller know ultimate mapping.
         return mapping
 
-delta = Delta("independent", 1)
+delta = Delta("dependent", 1)
+
 r = Router("full_cone", delta)
-src = ("10.0.1.50", 5000)
+
 dest = ("8.8.8.8", 53)
-mapping = r.connect(IP4, UDP, src, dest)
+
+for i in range(1, 10):
+    src = ("10.0.1.50", 1024 + (3 * i))
+    mapping = r.connect(IP4, UDP, src, dest)
+    print(mapping)
+
+
+
+exit(0)
 
 #print(mapping)
 

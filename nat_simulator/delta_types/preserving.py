@@ -1,4 +1,4 @@
-def plugin(delta, flow):
+def plugin(delta, flow, mapping):
     if hasattr(delta, "flow"):
         dist = abs(delta.flow.src_port - flow.src_port)
     else:
