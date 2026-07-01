@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import socket
 
+MAX_PORT = 65535
+
 # No NAT at all.
 OPEN_INTERNET = 1
 

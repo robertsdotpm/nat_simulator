@@ -10,12 +10,31 @@ class Router:
 
     def approve(self, af, proto, mapping, dest):
         return self.approve_plugin(self, af, proto, mapping, dest)
+    
+    def get_mapping(self, af, proto):
+        # Allocate a new NAT mapping based on the unique delta algorithm.
+        # Makes sure mapping isn't already used for this router.
+        mapping = None
+        for _ in range(0, MAX_PORT):
+            mapping = self.delta.allocate()
+            flow_key = (af, proto, mapping)
+
+            # Mapping already allocated, try again.
+            if flow_key in self.flows:
+                mapping = None
+                continue
+
+            return mapping
+
+        # Check for mapping success.
+        if mapping is None:
+            raise ValueError("No mappings left for router.")
 
     def connect(self, af, proto, src, dest):
         flow = FlowKey(af, proto, *src, *dest)
 
-        # Allocate a new NAT mapping based on the unique delta algorithm.
-        mapping = self.delta.allocate()
+        # Get a non-conflicting mapping from the router.
+        mapping = self.get_mapping(af, proto)
 
         # The NAT decides on whether inbound mappings can enter.
         # Hence, filtering by destination is convenient.
