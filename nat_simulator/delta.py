@@ -1,12 +1,15 @@
 from .defs import *
 from .utils import *
+from .ring_int import *
 
 class Delta:
-    def __init__(self, delta_type, delta_extra=None):
-        self.delta_extra = delta_extra
-        self.delta_plugin = load_plugin(("delta_types", delta_type))
-        self.value = 1 # start at mapping 1
+    def __init__(self, delta_type, step=1, delta_extra=None, delta_ring=None):
+        self.plugin = load_plugin(("delta_types", delta_type))
+        self.step = step
+        self.extra = delta_extra or {}
+        self.ring = delta_ring or RingInt(1024, MAX_PORT, 0)
+        self.value = self.ring
 
     def allocate(self):
-        return self.delta_plugin(self, self.delta_extra)
+        return self.plugin(self, self.step, self.extra)
     

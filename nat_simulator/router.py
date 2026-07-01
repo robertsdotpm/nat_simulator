@@ -41,13 +41,18 @@ class Router:
         flow_key = (af, proto, mapping)
         self.flows[flow_key] = flow
 
-delta = Delta("independent")
+        # Let caller know ultimate mapping.
+        return mapping
+
+delta = Delta("independent", 1)
 r = Router("full_cone", delta)
 src = ("10.0.1.50", 5000)
 dest = ("8.8.8.8", 53)
-r.connect(IP4, UDP, src, dest)
+mapping = r.connect(IP4, UDP, src, dest)
 
+print(mapping)
 
+exit(0)
 #print(r.flows)
 
 # Simulate accepting a con
