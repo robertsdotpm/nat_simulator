@@ -7,9 +7,10 @@ class Router:
         self.delta = delta
         self.approve_plugin = load_plugin(("nat_types", nat_type))
         self.flows = {}
+        self.dests = {}
 
-    def approve(self, af, proto, mapping, dest):
-        return self.approve_plugin(self, af, proto, mapping, dest)
+    def approve(self, af, proto, src, dest, mapping):
+        return self.approve_plugin(self, af, proto, src, dest, mapping)
     
     def get_mapping(self, flow):
         # Allocate a new NAT mapping based on the unique delta algorithm.
@@ -32,6 +33,10 @@ class Router:
 
     def connect(self, af, proto, src, dest):
         flow = FlowKey(af, proto, *src, *dest)
+
+        # For endpoint independent.
+        self.dests[dest[0]] = 1 # By IP
+        self.dests[dest] = 1 # By IP and port.
 
         # Get a non-conflicting mapping from the router.
         mapping = self.get_mapping(flow)
