@@ -4,8 +4,8 @@ from .delta import Delta
 
 class Router:
     def __init__(self, nat_type, delta):
-        self.delta = delta
         self.approve_plugin = load_plugin(("nat_types", nat_type))
+        self.delta = delta
         self.flows = {}
         self.dest_whitelist = {}
 
