@@ -1,2 +1,2 @@
-def plugin(router, af, proto, src, dest, mapping):
+def plugin(router, src, dest, flow):
     return True

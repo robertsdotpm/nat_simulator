@@ -10,6 +10,6 @@ class Delta:
         self.ring = delta_ring or RingInt(1024, MAX_PORT, 0)
         self.value = self.ring
 
-    def allocate(self, flow, mapping):
-        return self.plugin(self, flow, mapping)
+    def allocate(self, flow):
+        return self.plugin(self, flow)
     

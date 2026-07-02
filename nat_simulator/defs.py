@@ -40,10 +40,13 @@ UDP = socket.SOCK_DGRAM
 TCP = socket.SOCK_STREAM
 
 @dataclass(frozen=True, slots=True)
+class AddrKey:
+    ip: str
+    port: int
+
+@dataclass(frozen=True, slots=True)
 class FlowKey:
     af: int
     proto: int
-    src_ip: str
-    src_port: int
-    dst_ip: str
-    dst_port: int
+    src: AddrKey
+    dest: AddrKey

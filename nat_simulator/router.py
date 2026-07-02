@@ -7,17 +7,23 @@ class Router:
         self.delta = delta
         self.approve_plugin = load_plugin(("nat_types", nat_type))
         self.flows = {}
-        self.dests = {}
+        self.dest_whitelist = {}
 
-    def approve(self, af, proto, src, dest, mapping):
-        return self.approve_plugin(self, af, proto, src, dest, mapping)
+    def approve(self, af, proto, mapping, src, dest):
+        flow_key = (af, proto, mapping)
+        if flow_key in self.flows:
+            flow = self.flows[flow_key]
+        else:
+            flow = None
+
+        return self.approve_plugin(self, src, dest, flow)
     
     def get_mapping(self, flow):
         # Allocate a new NAT mapping based on the unique delta algorithm.
         # Makes sure mapping isn't already used for this router.
         mapping = 0
         for attempt in range(0, MAX_PORT):
-            mapping = int(self.delta.allocate(flow, mapping) + attempt)
+            mapping = int(self.delta.allocate(flow) + attempt)
             flow_key = (flow.af, flow.proto, mapping)
 
             # Mapping already allocated, try again.
@@ -32,11 +38,11 @@ class Router:
             raise ValueError("No mappings left for router.")
 
     def connect(self, af, proto, src, dest):
-        flow = FlowKey(af, proto, *src, *dest)
+        flow = FlowKey(af, proto, src, dest)
 
         # For endpoint independent.
-        self.dests[dest[0]] = 1 # By IP
-        self.dests[dest] = 1 # By IP and port.
+        self.dest_whitelist[dest.ip] = 1 # By IP
+        self.dest_whitelist[dest] = 1 # By IP and port.
 
         # Get a non-conflicting mapping from the router.
         mapping = self.get_mapping(flow)
@@ -53,10 +59,11 @@ delta = Delta("dependent", 1)
 
 r = Router("full_cone", delta)
 
-dest = ("8.8.8.8", 53)
+dest = AddrKey("8.8.8.8", 53)
+dest_b = AddrKey("8.8.8.8", 53)
 
 for i in range(1, 10):
-    src = ("10.0.1.50", 1024 + (3 * i))
+    src = AddrKey("10.0.1.50", 1024 + (3 * i))
     mapping = r.connect(IP4, UDP, src, dest)
     print(mapping)
 

@@ -1,2 +1,2 @@
-def plugin(delta, flow, mapping):
-    return flow.src_port
+def plugin(delta, flow):
+    return flow.src.port
