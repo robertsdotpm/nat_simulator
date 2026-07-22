@@ -10,6 +10,6 @@ class Delta:
         self.step = step
         self.value = self.ring
 
-    def allocate(self, flow):
-        return self.plugin(self, flow)
+    def allocate(self, src_port):
+        return self.plugin(self, src_port)
     

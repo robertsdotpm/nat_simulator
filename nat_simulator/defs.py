@@ -50,3 +50,35 @@ class FlowKey:
     proto: int
     src: AddrKey
     dest: AddrKey
+
+@dataclass(frozen=True, slots=True)
+class ClientKey:
+    af: int
+    proto: int
+    src: AddrKey
+
+@dataclass(frozen=True, slots=True)
+class MappingKey:
+    af: int
+    proto: int
+    mapping: int
+
+class MappingInfo:
+    mapping: int
+    dests: set
+
+
+
+@dataclass(frozen=True, slots=True)
+class WanIP:
+    v4: str
+    v6: str = None
+
+    def get(self, af):
+        if af == IP4:
+            return self.v4
+        
+        if af == IP6:
+            return self.v6
+        
+        raise Exception("unknown AF")

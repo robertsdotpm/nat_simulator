@@ -8,8 +8,8 @@ def plugin(router, src, dest, flow):
     if src != flow.src:
         return False
     
-    # Previously seen dest -- endpoint independent.
-    if dest.ip not in router.dest_whitelist:
+    # Address-dependent filtering (IP only.)
+    if dest.ip != flow.dest.ip:
         return False
     
     return True

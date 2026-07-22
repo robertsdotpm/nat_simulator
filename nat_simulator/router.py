@@ -1,35 +1,56 @@
+"""
+End-point independent means:
+reuse mapping if same internal src_ip, port, regardless of dest.
+"""
 from .defs import *
 from .utils import *
 from .delta import Delta
 
 class Router:
-    def __init__(self, nat_type, delta):
-        self.approve_plugin = load_plugin(("nat_types", nat_type))
+    def __init__(self, wan_ip, nat_type, delta):
+        self.accept_plugin = load_plugin(("nat_types", nat_type))
+        self.nat_type = nat_type
+        self.wan_ip = wan_ip
         self.delta = delta
         self.flows = {}
-        self.dest_whitelist = {}
+        self.mappings = {}
 
-    def approve(self, af, proto, mapping, src, dest):
+    def accept(self, af, proto, mapping, src, dest):
         flow_key = (af, proto, mapping)
         if flow_key in self.flows:
             flow = self.flows[flow_key]
         else:
             flow = None
 
-        return self.approve_plugin(self, src, dest, flow)
+        return self.accept_plugin(self, src, dest, flow)
     
-    def get_mapping(self, flow):
+    def get_mapping(self, af, proto, src, dest):
+        client_key = ClientKey(af, proto, src)
+
         # Allocate a new NAT mapping based on the unique delta algorithm.
         # Makes sure mapping isn't already used for this router.
         mapping = 0
         for attempt in range(0, MAX_PORT):
-            mapping = int(self.delta.allocate(flow) + attempt)
-            flow_key = (flow.af, flow.proto, mapping)
+            # A mapping for this internal address already exists.
+            mapping_key = MappingKey(af, proto, mapping)
 
-            # Mapping already allocated, try again.
-            if flow_key in self.flows:
-                mapping = 0
-                continue
+            # Pre-existing mapping is found -- see if reuse permitted.
+            by_client_key = client_key in self.mappings
+            by_mapping_key = mapping_key in self.mappings
+            if by_client_key or by_mapping_key:
+                mapping_info = self.mappings[mapping_key]
+
+                # If a NAT is "endpoint-independent": reuse is permitted.
+                if self.nat_type != "symmetric":
+                    mapping_info.dests.insert(dest)
+                else:
+                    continue
+
+
+            mapping = int(self.delta.allocate(src.port) + attempt)
+            self.mappings[mapping_key]
+
+            
 
             return mapping
 
@@ -38,14 +59,13 @@ class Router:
             raise ValueError("No mappings left for router.")
 
     def connect(self, af, proto, src, dest):
+        mapping_key = MappingKey(af, proto, src)
         flow = FlowKey(af, proto, src, dest)
 
-        # For endpoint independent.
-        self.dest_whitelist[dest.ip] = 1 # By IP
-        self.dest_whitelist[dest] = 1 # By IP and port.
+
 
         # Get a non-conflicting mapping from the router.
-        mapping = self.get_mapping(flow)
+        mapping = self.get_mapping(mapping_key, dest)
 
         # The NAT decides on whether inbound mappings can enter.
         # Hence, filtering by destination is convenient.
@@ -55,12 +75,14 @@ class Router:
         # Let caller know ultimate mapping.
         return mapping
 
+"""
 delta = Delta("dependent", 1)
 
 r = Router("full_cone", delta)
 
 dest = AddrKey("8.8.8.8", 53)
 dest_b = AddrKey("8.8.8.8", 53)
+
 
 for i in range(1, 10):
     src = AddrKey("10.0.1.50", 1024 + (3 * i))
@@ -79,3 +101,4 @@ exit(0)
 # Simulate accepting a con
 ret = r.approve(IP4, UDP, 1025, dest)
 print(ret)
+"""
