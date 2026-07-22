@@ -13,9 +13,8 @@ class PredictEngine:
         for i in range(0, n):
             src = AddrKey(self.src_router.wan_ip.get(af), i)
             dest = AddrKey(self.dest_router.wan_ip.get(af), i)
-            flow = FlowKey(af, proto, src, dest)
 
-            mapping = self.dest_router.get_mapping(flow)
+            mapping = self.dest_router.get_mapping(af, proto, src, dest)
             mappings.append(mapping)
 
         return mappings

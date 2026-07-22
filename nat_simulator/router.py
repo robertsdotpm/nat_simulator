@@ -1,6 +1,9 @@
 """
 End-point independent means:
 reuse mapping if same internal src_ip, port, regardless of dest.
+
+RFC 4787 endpoint independent vs dependent
+
 """
 from .defs import *
 from .utils import *
@@ -12,65 +15,61 @@ class Router:
         self.nat_type = nat_type
         self.wan_ip = wan_ip
         self.delta = delta
-        self.flows = {}
+
+        # The external port space: what an inbound packet keys on.
         self.mappings = {}
 
-    def accept(self, af, proto, mapping, src, dest):
-        flow_key = (af, proto, mapping)
-        if flow_key in self.flows:
-            flow = self.flows[flow_key]
-        else:
-            flow = None
+        # Which mapping an outbound flow already owns.
+        self.reuse = {}
 
-        return self.accept_plugin(self, src, dest, flow)
-    
+    def accept(self, af, proto, mapping, dest):
+        mapping_key = MappingKey(af, proto, mapping)
+
+        # None = no mapping exists; only open_internet accepts that.
+        return self.accept_plugin(self, dest, self.mappings.get(mapping_key))
+
+    def reuse_key(self, af, proto, src, dest):
+        # Symmetric NATs are "endpoint dependent": a new destination
+        # gets a new mapping, so the destination is part of the key.
+        if self.nat_type == "symmetric":
+            return FlowKey(af, proto, src, dest)
+
+        # Everything else is endpoint independent: one mapping per
+        # internal endpoint, reused regardless of destination.
+        return ClientKey(af, proto, src)
+
     def get_mapping(self, af, proto, src, dest):
-        client_key = ClientKey(af, proto, src)
+        # Existing mapping for this endpoint (or flow) -- reuse it.
+        reuse_key = self.reuse_key(af, proto, src, dest)
+        if reuse_key in self.reuse:
+            mapping_info = self.reuse[reuse_key]
+            mapping_info.allow(dest)
+            return mapping_info.mapping
 
-        # Allocate a new NAT mapping based on the unique delta algorithm.
-        # Makes sure mapping isn't already used for this router.
-        mapping = 0
-        for attempt in range(0, MAX_PORT):
-            # A mapping for this internal address already exists.
+        # Otherwise allocate. The delta chooses the port -- advance it
+        # once, then probe forward past any port already handed out.
+        base = self.delta.allocate(src.port)
+        for attempt in range(0, self.delta.ring.width):
+            mapping = int(base + attempt)
             mapping_key = MappingKey(af, proto, mapping)
 
-            # Pre-existing mapping is found -- see if reuse permitted.
-            by_client_key = client_key in self.mappings
-            by_mapping_key = mapping_key in self.mappings
-            if by_client_key or by_mapping_key:
-                mapping_info = self.mappings[mapping_key]
+            # Port belongs to another internal endpoint -- try the next.
+            if mapping_key in self.mappings:
+                continue
 
-                # If a NAT is "endpoint-independent": reuse is permitted.
-                if self.nat_type != "symmetric":
-                    mapping_info.dests.insert(dest)
-                else:
-                    continue
-
-
-            mapping = int(self.delta.allocate(src.port) + attempt)
-            self.mappings[mapping_key]
-
-            
-
+            # Record mapping info.
+            mapping_info = MappingInfo(src, mapping)
+            mapping_info.allow(dest)
+            self.mappings[mapping_key] = mapping_info
+            self.reuse[reuse_key] = mapping_info
             return mapping
 
         # Check for mapping success.
-        if not mapping:
-            raise ValueError("No mappings left for router.")
+        raise ValueError("No mappings left for router.")
 
     def connect(self, af, proto, src, dest):
-        mapping_key = MappingKey(af, proto, src)
-        flow = FlowKey(af, proto, src, dest)
-
-
-
         # Get a non-conflicting mapping from the router.
-        mapping = self.get_mapping(mapping_key, dest)
-
-        # The NAT decides on whether inbound mappings can enter.
-        # Hence, filtering by destination is convenient.
-        flow_key = (af, proto, mapping)
-        self.flows[flow_key] = flow
+        mapping = self.get_mapping(af, proto, src, dest)
 
         # Let caller know ultimate mapping.
         return mapping

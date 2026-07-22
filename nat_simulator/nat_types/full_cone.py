@@ -1,12 +1,7 @@
 """
-A full cone NAT lets any destination connect back providing an existing
-mapping exists.
+1. Reuse mapping on same src ip:port.
+2. No filtering: A full cone NAT lets any destination connect back providing an existing mapping exists.
 """
-def plugin(router, src, dest, flow): 
-    if not flow:
-        return False
-    
-    if src != flow.src:
-        return False
-
-    return True
+def plugin(router, dest, mapping_info):
+    # No filtering, but a mapping still has to exist.
+    return mapping_info is not None

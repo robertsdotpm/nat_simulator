@@ -1,2 +1,3 @@
-def plugin(router, src, dest, flow):
+# Never a valid mapping.
+def plugin(router, dest, mapping_info):
     return False

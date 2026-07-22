@@ -1,15 +1,14 @@
 """
-Restrict type nat = seen dest IP. Reply port can be anything.
+1. Reuse mapping on same src ip:port.
+2. Filtering = same dest IP
+    Reply port can be anything.
 """
-def plugin(router, src, dest, flow):
-    if not flow:
+def plugin(router, dest, mapping_info):
+    if mapping_info is None:
         return False
-    
-    if src != flow.src:
-        return False
-    
+
     # Address-dependent filtering (IP only.)
-    if dest.ip != flow.dest.ip:
+    if dest.ip not in mapping_info.dests:
         return False
-    
+
     return True
