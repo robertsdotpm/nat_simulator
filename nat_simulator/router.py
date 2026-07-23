@@ -16,38 +16,37 @@ class Router:
         self.wan_ip = wan_ip
         self.delta = delta
 
-        # The external port space: what an inbound packet keys on.
-        self.mappings = {}
+        # Mapping dest list by mapping.
+        # [MappingKey] -> MappingInfo
+        self.mappings = {} 
 
-        # Which mapping an outbound flow already owns.
-        self.reuse = {}
+        # Mapping dest list by reuse conditions.
+        # [FlowKey|ClientKey] -> MappingInfo
+        self.mapping_owners = {}
 
     def accept(self, af, proto, mapping, dest):
         mapping_key = MappingKey(af, proto, mapping)
 
         # None = no mapping exists; only open_internet accepts that.
-        return self.accept_plugin(self, dest, self.mappings.get(mapping_key))
+        mapping_info = self.mappings.get(mapping_key)
+        return self.accept_plugin(self, dest, mapping_info)
+    
+    def record_mapping(self, mapping_key, owner_key, mapping_info):
+        self.mappings[mapping_key] = mapping_info
+        self.mapping_owners[owner_key] = mapping_info
 
-    def reuse_key(self, af, proto, src, dest):
-        # Symmetric NATs are "endpoint dependent": a new destination
-        # gets a new mapping, so the destination is part of the key.
-        if self.nat_type == "symmetric":
-            return FlowKey(af, proto, src, dest)
+    def get_reused_mapping(self, owner_key, dest):
+        if owner_key in self.mapping_owners:
+            mapping_info = self.mapping_owners[owner_key]
 
-        # Everything else is endpoint independent: one mapping per
-        # internal endpoint, reused regardless of destination.
-        return ClientKey(af, proto, src)
+            # Each mapping has a whitelist that it consults based on NAT type.
+            # Even if reusable -- whitelist can still prevent inbound.
+            mapping_info.whitelist(dest)
 
-    def get_mapping(self, af, proto, src, dest):
-        # Existing mapping for this endpoint (or flow) -- reuse it.
-        reuse_key = self.reuse_key(af, proto, src, dest)
-        if reuse_key in self.reuse:
-            mapping_info = self.reuse[reuse_key]
-            mapping_info.allow(dest)
+            # Return pre-existing mapping.
             return mapping_info.mapping
-
-        # Otherwise allocate. The delta chooses the port -- advance it
-        # once, then probe forward past any port already handed out.
+    
+    def get_free_mapping(self, af, proto, src):
         base = self.delta.allocate(src.port)
         for attempt in range(0, self.delta.ring.width):
             mapping = int(base + attempt)
@@ -56,16 +55,27 @@ class Router:
             # Port belongs to another internal endpoint -- try the next.
             if mapping_key in self.mappings:
                 continue
+            
+            # Return computed mapping.
+            return mapping, mapping_key
+        
+        raise Exception("Router out of mappings.")
+        
+    def get_mapping(self, af, proto, src, dest):
+        # Existing mapping for this endpoint (or flow) -- reuse it.
+        owner_key = mapping_owner_key(self.nat_type, af, proto, src, dest)
+        reused_mapping = self.get_reused_mapping(owner_key, dest)
+        if reused_mapping:
+            return reused_mapping
 
-            # Record mapping info.
-            mapping_info = MappingInfo(src, mapping)
-            mapping_info.allow(dest)
-            self.mappings[mapping_key] = mapping_info
-            self.reuse[reuse_key] = mapping_info
-            return mapping
+        # Otherwise allocate. The delta chooses the port -- advance it
+        # once, then probe forward past any port already handed out.
+        mapping, mapping_key = self.get_free_mapping(af, proto, src)
 
-        # Check for mapping success.
-        raise ValueError("No mappings left for router.")
+        # Record mapping info by allocation and owner.
+        mapping_info = MappingInfo(src, mapping, dest)
+        self.record_mapping(mapping_key, owner_key, mapping_info)
+        return mapping
 
     def connect(self, af, proto, src, dest):
         # Get a non-conflicting mapping from the router.

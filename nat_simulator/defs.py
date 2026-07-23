@@ -36,11 +36,15 @@ class MappingKey:
 class MappingInfo:
     src: AddrKey
     mapping: int
-    dests: set = field(default_factory=set)
+    dest: AddrKey
+
+    def __post_init__(self):
+        self.dests = set()
+        self.whitelist(self.dest)
 
     # Filtering matches on dest IP (restrict) or IP and port
     # (restrict port / symmetric) so record both forms.
-    def allow(self, dest):
+    def whitelist(self, dest):
         self.dests.add(dest)
         self.dests.add(dest.ip)
 

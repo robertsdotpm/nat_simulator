@@ -2,7 +2,7 @@
 1. Mappings different for every unique quad tuple.
     i.e. even if reusing (af, proto, src ip, src port)
     mapping will be different
-2. 
+2. Filtering for dest ip and dest port still.
 """
 def plugin(router, dest, mapping_info):
     if mapping_info is None:
